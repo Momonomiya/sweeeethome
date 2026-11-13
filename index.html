@@ -1,0 +1,1367 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>部屋レイアウトツール</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background:#eef0f3; font-family: "Hiragino Sans", "Yu Gothic", sans-serif; color: #222; }
+  body { display: flex; height: 100%; overflow: hidden; background: #eef0f3; }
+
+  /* ===== 左パネル ===== */
+  #panel {
+    width: 320px; min-width: 320px; height: 100%; overflow-y: auto;
+    background: #fff; border-right: 1px solid #d7dbe0; padding: 14px 14px 40px;
+  }
+  #panel h1 { font-size: 17px; margin: 0 0 4px; }
+  #panel .sub { font-size: 11px; color: #888; margin: 0 0 14px; }
+  .section { border: 1px solid #e3e6ea; border-radius: 8px; padding: 10px 11px; margin-bottom: 12px; }
+  .section h2 { font-size: 13px; margin: 0 0 8px; color: #3a3f45; }
+  label { font-size: 12px; color: #555; display: block; margin: 7px 0 2px; }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; padding: 6px 7px; border: 1px solid #ccd2d8; border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 52px; }
+  .row { display: flex; gap: 8px; }
+  .row > div { flex: 1; }
+  button {
+    font-family: inherit; font-size: 13px; padding: 7px 10px; border-radius: 6px;
+    border: 1px solid #e2dac4; background: #f6f1e3; color: #5a5345; cursor: pointer;
+  }
+  button:hover { background: #ece4cf; }
+  button.primary { background: #7e8fc9; color: #fff; border-color: #7e8fc9; }
+  button.primary:hover { background: #6c7cbb; }
+  button.danger { color: #c0392b; }
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .seg { display: flex; gap: 0; margin-top: 2px; }
+  .seg button { flex: 1; border-radius: 0; border-right: none; }
+  .seg button:first-child { border-radius: 6px 0 0 6px; }
+  .seg button:last-child { border-radius: 0 6px 6px 0; border-right: 1px solid #c3c9d0; }
+  .seg button.on { background: #7e8fc9; color: #fff; border-color: #7e8fc9; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .chip {
+    font-size: 12px; padding: 3px 8px; border-radius: 20px; border: 1px solid #e2dac4;
+    background: #f6f1e3; color: #6b6450; cursor: pointer; white-space: nowrap;
+  }
+  .chip:hover { background: #ece4cf; }
+  .hint { font-size: 11px; color: #999; margin-top: 5px; line-height: 1.5; }
+  .info-line { font-size: 13px; display: flex; justify-content: space-between; padding: 3px 0; }
+  .info-line span:last-child { font-weight: 600; }
+  .empty { color: #aaa; font-size: 12px; }
+
+  /* ===== キャンバス ===== */
+  #stage { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #canvasWrap { flex: 1; position: relative; overflow: hidden; }
+  #svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; background: #eef0f3; }
+  #svg.grabbing { cursor: grabbing; }
+  #toolbar {
+    position: absolute; top: 12px; right: 12px; display: flex; gap: 6px;
+    background: #fff; padding: 6px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  #toolbar button { padding: 5px 9px; }
+  #toolbar button.on { background:#7e8fc9; color:#fff; border-color:#7e8fc9; }
+  /* レイアウト切替バー（上部の帯） */
+  #planbar {
+    display:flex; gap:6px; align-items:center;
+    background:#fff; padding:8px 12px; border-bottom:1px solid #dfe3e8;
+    overflow-x:auto; white-space:nowrap;
+  }
+  #planTabs { display:flex; gap:4px; }
+  .plantab { display:flex; align-items:center; border:1px solid #e2dac4; border-radius:6px; background:#f6f1e3; color:#6b6450; font-size:13px; }
+  .plantab.on { background:#7e8fc9; color:#fff; border-color:#7e8fc9; }
+  .plantab > span { padding:5px 4px 5px 10px; cursor:pointer; white-space:nowrap; }
+  .plantab .planx { border:none; background:transparent; color:inherit; padding:0 6px; cursor:pointer; font-size:14px; line-height:1; border-radius:4px; }
+  .plantab .planx:hover { background:rgba(0,0,0,.15); }
+  #planbar > button { font-size:12px; padding:5px 8px; }
+  #legend {
+    position: absolute; bottom: 12px; left: 12px; background: rgba(255,255,255,.92);
+    padding: 7px 11px; border-radius: 8px; font-size: 11px; color: #666; line-height: 1.6;
+    box-shadow: 0 1px 4px rgba(0,0,0,.12);
+  }
+  .item-shape { cursor: move; }
+  .corner-handle { cursor: move; fill: #fff; stroke: #c2618e; stroke-width: 2; }
+
+  /* タブ */
+  .tabbar { display:flex; margin-bottom:14px; border:1px solid #e2dac4; border-radius:8px; overflow:hidden; }
+  .tabbar button { flex:1; border:none; border-radius:0; background:#f6f1e3; color:#6b6450; padding:9px; font-weight:600; }
+  .tabbar button.on { background:#7e8fc9; color:#fff; }
+  /* 家具リストのカード */
+  .card { border:1px solid #e3e6ea; border-radius:8px; padding:9px 10px; margin-bottom:9px; cursor:pointer; }
+  .card.sel { border-color:#7e8fc9; box-shadow:0 0 0 2px rgba(194,97,142,.32); }
+  .card .cname { font-weight:600; font-size:13px; display:flex; justify-content:space-between; gap:8px; }
+  .card .cmeta { font-size:12px; color:#777; margin-top:2px; }
+  .card .cprice { color:#5a5345; font-weight:600; white-space:nowrap; }
+  .card .cpriceedit { display:flex; align-items:center; gap:4px; margin-top:6px; font-size:12px; color:#5a5345; }
+  .card .cprice-input { width:100px; padding:4px 6px; font-size:13px; border:1px solid #ccd2d8; border-radius:6px; }
+  .card .clink { font-size:11px; display:inline-block; margin-top:5px; }
+  .card .cbtns { display:flex; gap:6px; margin-top:8px; }
+  .card .cbtns button { padding:4px 8px; font-size:12px; }
+  .pill-badge { display:inline-block; font-size:10px; background:#e2e5ea; color:#5b626d; border-radius:10px; padding:1px 7px; margin-left:5px; vertical-align:middle; }
+  /* 確認ダイアログ（アーティファクトでは confirm/prompt が使えないため） */
+  #dlg { position:fixed; inset:0; background:rgba(30,35,45,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  #dlg[hidden], [hidden] { display:none !important; }
+  #dlgBox { background:#fff; border-radius:10px; padding:16px; width:min(440px,100%); box-shadow:0 6px 24px rgba(0,0,0,.25); }
+  #dlgMsg { font-size:14px; margin:0 0 10px; line-height:1.6; white-space:pre-wrap; }
+  #dlgText { min-height:160px; font-size:11px; font-family:ui-monospace,Menlo,monospace; }
+  #dlgBox .btn-row { justify-content:flex-end; }
+  /* スマホ幅：パネルを下、図を上に */
+  @media (max-width: 760px) {
+    body { flex-direction:column-reverse; }
+    #panel { width:100%; min-width:0; height:46%; border-right:none; border-top:1px solid #d7dbe0; }
+    #stage { height:54%; flex:none; }
+    #legend { display:none; }
+    #toolbar { top:8px; right:8px; flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div id="dlg" hidden>
+  <div id="dlgBox">
+    <p id="dlgMsg"></p>
+    <input type="text" id="dlgInput" hidden>
+    <textarea id="dlgText" hidden></textarea>
+    <div class="btn-row">
+      <button id="dlgCopy" hidden>コピー</button>
+      <button id="dlgCancel">キャンセル</button>
+      <button id="dlgOk" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+  <h1>部屋レイアウトツール</h1>
+  <p class="sub">データはこのPC内（ブラウザ）に保存されます。外部送信なし。</p>
+
+  <div class="tabbar">
+    <button id="tabBtnEdit" class="on">編集</button>
+    <button id="tabBtnList">家具リスト</button>
+  </div>
+
+  <div id="tabEdit">
+  <!-- 部屋設定 -->
+  <div class="section">
+    <h2>① 部屋の大きさ</h2>
+    <div class="row">
+      <div><label>幅 (cm)</label><input type="number" id="roomW" value="400" min="50" step="10"></div>
+      <div><label>奥行き (cm)</label><input type="number" id="roomD" value="300" min="50" step="10"></div>
+    </div>
+    <div class="btn-row">
+      <button id="makeRect">長方形にする</button>
+      <button id="makeL">L字にする</button>
+    </div>
+    <div id="lConfig" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #e0e3e8;">
+      <div class="row">
+        <div><label>欠けの幅 (cm)</label><input type="number" id="notchW" value="180" step="10"></div>
+        <div><label>欠けの奥行き (cm)</label><input type="number" id="notchD" value="135" step="10"></div>
+      </div>
+      <label>欠ける角</label>
+      <select id="notchCorner">
+        <option value="br">右下</option>
+        <option value="tr">右上</option>
+        <option value="bl">左下</option>
+        <option value="tl">左上</option>
+      </select>
+      <p class="hint">全体の大きさは上の「幅・奥行き」を使います。数字を変えるとすぐ形に反映されます。</p>
+    </div>
+    <div class="btn-row">
+      <button id="editCorners">角を編集 ON/OFF</button>
+    </div>
+    <p class="hint">角の編集ON中：白い丸をドラッグで角を移動／辺をダブルクリックで角を追加／角をクリックして Delete で削除。</p>
+  </div>
+
+  <!-- 家具追加 -->
+  <div class="section">
+    <h2>② 家具を追加</h2>
+    <label>名前</label>
+    <input type="text" id="fName" placeholder="例）ダイニングテーブル">
+
+    <label>形</label>
+    <div class="seg" id="shapeSeg">
+      <button data-shape="rect" class="on">長方形</button>
+      <button data-shape="square">正方形</button>
+      <button data-shape="circle">円</button>
+    </div>
+
+    <div id="dimRect">
+      <div class="row">
+        <div><label>幅 (cm)</label><input type="number" id="fW" class="dim" value="120"></div>
+        <div><label>奥行き (cm)</label><input type="number" id="fD" class="dim" value="80"></div>
+      </div>
+    </div>
+    <div id="dimSquare" style="display:none">
+      <label>一辺 (cm)</label><input type="number" id="fSide" class="dim" value="60">
+    </div>
+    <div id="dimCircle" style="display:none">
+      <label>直径 (cm)</label><input type="number" id="fDia" class="dim" value="45">
+    </div>
+
+    <label>URL（メモ・任意）</label>
+    <input type="text" id="fUrl" placeholder="商品ページのURLなど">
+
+    <label>価格（円・任意）</label>
+    <input type="text" inputmode="numeric" id="fPrice" placeholder="例）29,800">
+
+    <label>サイズ・価格のコピペ → 数字を拾う</label>
+    <textarea id="pasteBox" placeholder="商品ページのサイズが書かれた部分をコピーして貼り付け。例）幅120×奥行80×高さ72cm"></textarea>
+    <div class="chips" id="chips"></div>
+    <p class="hint">入れたい入力欄をクリックしてから、上の数字ボタンを押すとその欄に入ります。「mm」表記は自動でcmに直します。</p>
+
+    <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#555;">
+      <input type="checkbox" id="fPillar" style="width:auto;margin:0;"> 柱・出っ張りとして追加（グレー表示・動かせます）
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#555;">
+      <input type="checkbox" id="fListOnly" style="width:auto;margin:0;"> レイアウトに配置しない（リスト・合計だけ／照明・カーテンなど）
+    </label>
+    <div class="btn-row">
+      <button class="primary" id="addItem" style="flex:1">この家具を追加</button>
+    </div>
+  </div>
+
+  <!-- ドア -->
+  <div class="section">
+    <h2>ドア・引き戸を置く</h2>
+    <label>種類</label>
+    <div class="seg" id="doorSeg">
+      <button data-door="swing" class="on">開き戸（円弧）</button>
+      <button data-door="slide">引き戸</button>
+    </div>
+    <label>開口の幅 (cm)</label>
+    <input type="number" id="doorW" value="80">
+    <div class="btn-row">
+      <button class="primary" id="addDoor" style="flex:1">ドアを追加</button>
+    </div>
+    <p class="hint">追加後、ドラッグで壁ぎわへ。回転ハンドルで向きを合わせ、選択中（③）の「左右反転」で開く向きを変えられます。距離計算・合計金額には入りません。</p>
+  </div>
+
+  <!-- コンセント -->
+  <div class="section">
+    <h2>コンセントを置く</h2>
+    <div class="btn-row">
+      <button class="primary" id="addOutlet" style="flex:1">コンセントを追加</button>
+    </div>
+    <p class="hint">小さなマークで「ここにコンセントがある」を記録できます。ドラッグで壁ぎわへ。距離計算・合計金額には入りません。</p>
+  </div>
+
+  <!-- 選択中の家具 -->
+  <div class="section">
+    <h2>③ 選択中の家具</h2>
+    <div id="selNone" class="empty">家具をクリックすると、壁や隣の家具までの距離が出ます。背景をドラッグで囲むと複数選択できます。</div>
+    <div id="selMulti" style="display:none">
+      <div style="font-weight:600;font-size:14px;margin-bottom:6px;" id="selMultiCount">0個 選択中</div>
+      <p class="hint" style="margin-top:0;">選択した家具のどれかをドラッグすると、まとめて移動できます。</p>
+      <div class="btn-row">
+        <button class="danger" id="delSelected">選択した家具をまとめて削除</button>
+      </div>
+    </div>
+    <div id="selBox" style="display:none">
+      <label>名前</label>
+      <input type="text" id="selName">
+      <div id="selDim"></div>
+      <div id="selRotRow">
+      <label>回転 (度)</label>
+      <div class="row">
+        <div><input type="number" id="selRot" value="0" step="5"></div>
+        <div><button id="rot90" style="width:100%">90°回す</button></div>
+      </div>
+      </div>
+      <label>価格 (円)</label>
+      <input type="text" inputmode="numeric" id="selPrice" placeholder="例）29,800">
+      <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:#555;">
+        <input type="checkbox" id="selListOnly" style="width:auto;margin:0;"> レイアウトに配置しない（リスト・合計だけ）
+      </label>
+      <div id="selDistBox" style="margin-top:10px; background:#f7f9fc; border:1px solid #e3e8ef; border-radius:6px; padding:8px;">
+        <div style="font-size:12px;color:#666;margin-bottom:4px;">まわりとの距離（<span style="color:#e8590c;">壁</span>／<span style="color:#3d9b84;">家具</span>）</div>
+        <div class="info-line"><span>↑ 上</span><span id="mUp">—</span></div>
+        <div class="info-line"><span>↓ 下</span><span id="mDown">—</span></div>
+        <div class="info-line"><span>← 左</span><span id="mLeft">—</span></div>
+        <div class="info-line"><span>→ 右</span><span id="mRight">—</span></div>
+      </div>
+      <a id="selUrlLink" href="#" target="_blank" style="font-size:12px;display:none;margin-top:8px;">商品ページを開く ↗</a>
+      <div class="btn-row">
+        <button id="dupItem">複製</button>
+        <button class="danger" id="delItem">削除</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>合計金額</h2>
+    <div id="totalPrice" style="font-size:20px;font-weight:700;color:#5a5345;">¥0</div>
+    <p class="hint">置いた家具の価格の合計です（柱は除く）。価格は家具ごとに入力します。</p>
+  </div>
+
+  <div class="section">
+    <h2>データ</h2>
+    <div class="btn-row">
+      <button id="exportData">データをコピー</button>
+      <button id="importText">貼り付けて読み込み</button>
+      <button id="importData">ファイルから読み込み</button>
+    </div>
+    <div class="btn-row">
+      <button id="resetAll" class="danger">すべてリセット</button>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+    <p class="hint">同じブラウザでは自動保存されます。別の人に今のレイアウトを見せたいときは「データをコピー」→LINEなどで送る→相手が「貼り付けて読み込み」。「すべてリセット」で最初の間取り（2LDK）に戻ります。</p>
+  </div>
+  </div><!-- /tabEdit -->
+
+  <div id="tabList" style="display:none">
+    <div class="section">
+      <h2>家具リスト</h2>
+      <p class="hint" style="margin-top:0;">追加した家具の一覧です。カードを押すと、その家具を選んで画面の中央に表示します（そのままドラッグで配置できます）。</p>
+      <label>並び順</label>
+      <select id="listSort">
+        <option value="added">追加順</option>
+        <option value="price-desc">金額が高い順</option>
+        <option value="price-asc">金額が安い順</option>
+        <option value="size-desc">サイズが大きい順</option>
+        <option value="size-asc">サイズが小さい順</option>
+        <option value="name">名前順</option>
+      </select>
+      <div id="listBox" style="margin-top:10px;"></div>
+      <div id="listEmpty" class="empty">まだ家具がありません。「編集」タブの②から追加してください。</div>
+      <div style="margin-top:10px;font-size:15px;font-weight:700;color:#5a5345;" id="listTotal">合計 ¥0</div>
+    </div>
+  </div>
+</div>
+
+<div id="stage">
+  <div id="planbar">
+    <span style="font-size:12px;color:#888;white-space:nowrap;">レイアウト：</span>
+    <div id="planTabs"></div>
+    <button id="dupPlan" title="今のレイアウトをそっくり複製">＋ 複製</button>
+    <button id="newPlan" title="同じ部屋で家具を空にした新規レイアウト">＋ 新規</button>
+  </div>
+  <div id="canvasWrap">
+    <svg id="svg"></svg>
+    <div id="toolbar">
+      <button id="modeSelect" class="on">範囲選択</button>
+      <button id="modePan">画面移動</button>
+      <span style="width:1px;background:#ddd;margin:0 2px;"></span>
+      <button id="zoomIn">＋</button>
+      <button id="zoomOut">−</button>
+      <button id="fit">全体表示</button>
+    </div>
+    <div id="legend">
+      家具をドラッグで移動／クリックで選択<br>
+      背景をドラッグで複数選択（「画面移動」に切替で画面を動かす）<br>
+      選択中は ⌘C / ⌘V でコピー＆ペースト、Delete で削除
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ===== 状態（複数レイアウト対応） =====
+// 部屋の形・固定設備（ドア/コンセント/柱）は全レイアウト共通。家具だけレイアウトごと。
+const KEY = "room-layout-v1";
+const FIXTURE_KINDS = { door:true, outlet:true, pillar:true };
+function isFixture(it){ return !!FIXTURE_KINDS[it.kind]; }
+function defaultRoom(){ return { points: [{x:0,y:0},{x:400,y:0},{x:400,y:300},{x:0,y:300}] }; }
+function pid(){ return "p"+Math.floor(performance.now()*1000).toString(36); }
+const DEFAULT_DOC = {"room":{"points":[{"x":24,"y":-392},{"x":539,"y":-392},{"x":539,"y":-127},{"x":588,"y":-127},{"x":588,"y":318},{"x":430,"y":318},{"x":430,"y":684},{"x":145,"y":684},{"x":145,"y":318},{"x":0,"y":318},{"x":0,"y":32},{"x":24,"y":32}]},"fixtures":[{"id":"m1","name":"浴室","shape":"rect","kind":"pillar","rot":0,"x":118.0,"y":-324.5,"w":188,"d":135,"url":"","price":0},{"id":"m2","name":"クローゼット","shape":"rect","kind":"pillar","rot":0,"x":259.5,"y":-324.5,"w":95,"d":135,"url":"","price":0},{"id":"m3","name":"トイレ","shape":"rect","kind":"pillar","rot":0,"x":259.5,"y":-187.0,"w":95,"d":140,"url":"","price":0},{"id":"m4","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":118.0,"y":-259.5,"w":188,"d":5,"url":"","price":0},{"id":"m5","name":"洗面台","shape":"rect","kind":"pillar","rot":0,"x":87.0,"y":-232.0,"w":50,"d":50,"url":"","price":0},{"id":"m6","name":"洗濯パン60×60（置場幅74）","shape":"rect","kind":"pillar","rot":0,"x":59.0,"y":-157.0,"w":60,"d":60,"url":"","price":0},{"id":"m7","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":69.5,"y":-122.0,"w":91,"d":10,"url":"","price":0},{"id":"m8","name":"雑入","shape":"rect","kind":"pillar","rot":0,"x":69.5,"y":13.5,"w":91,"d":37,"url":"","price":0},{"id":"m9","name":"収納","shape":"rect","kind":"pillar","rot":0,"x":168.5,"y":13.5,"w":87,"d":37,"url":"","price":0},{"id":"m10","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":219.0,"y":11.0,"w":14,"d":42,"url":"","price":0},{"id":"m11","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":420.0,"y":-5.0,"w":238,"d":10,"url":"","price":0},{"id":"m12","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":312.0,"y":-201.0,"w":10,"d":382,"url":"","price":0},{"id":"m13","name":"収納","shape":"rect","kind":"pillar","rot":0,"x":563.5,"y":-63.5,"w":49,"d":127,"url":"","price":0},{"id":"m14","name":"キッチン","shape":"rect","kind":"pillar","rot":0,"x":173.0,"y":227.0,"w":74,"d":182,"url":"","price":0},{"id":"m15","name":"壁","shape":"rect","kind":"pillar","rot":0,"x":287.5,"y":323.0,"w":285,"d":10,"url":"","price":0},{"id":"m16","name":"クローゼット","shape":"rect","kind":"pillar","rot":0,"x":177.5,"y":422.5,"w":65,"d":189,"url":"","price":0},{"id":"m17","name":"収納","shape":"rect","kind":"pillar","rot":0,"x":177.5,"y":560.5,"w":65,"d":87,"url":"","price":0},{"id":"m18","name":"PC棚","shape":"rect","kind":"pillar","rot":0,"x":177.5,"y":644.0,"w":65,"d":80,"url":"","price":0},{"id":"m19","name":"ドア","kind":"door","doorType":"swing","x":226,"y":0,"width":75,"rot":0,"flip":false},{"id":"m20","name":"トイレ","kind":"door","doorType":"swing","x":230,"y":-117,"width":65,"rot":0,"flip":false},{"id":"m21","name":"引き戸","kind":"door","doorType":"slide","x":428,"y":-5,"width":120,"rot":0,"flip":false},{"id":"m22","name":"引き戸","kind":"door","doorType":"slide","x":320,"y":323,"width":120,"rot":0,"flip":false}],"plans":[{"id":"p1","name":"2LDK（301）","furniture":[]}],"active":0};
+function freshDoc(){ return JSON.parse(JSON.stringify(DEFAULT_DOC)); }
+function store(v){ try{ if(v===null) localStorage.removeItem(KEY); else localStorage.setItem(KEY,v); }catch(e){} }
+function clampActive(d){ if(typeof d.active!=="number"||d.active<0||d.active>=d.plans.length) d.active=0; return d; }
+function migrateToDoc(raw){
+  if(!raw) return freshDoc();
+  // 新形式（共通設備＋レイアウトごと家具）
+  if(raw.fixtures && Array.isArray(raw.plans) && raw.plans.length){
+    return clampActive({ room:raw.room||defaultRoom(), fixtures:raw.fixtures,
+      plans:raw.plans.map(p=>({id:p.id||pid(), name:p.name||"レイアウト", furniture:p.furniture||[]})), active:raw.active });
+  }
+  // 旧マルチ形式 {plans:[{room,items}]} → 1つ目の部屋・設備を共通に
+  if(Array.isArray(raw.plans) && raw.plans.length){
+    const base=raw.plans[0];
+    const fixtures=(base.items||[]).filter(isFixture).map(x=>JSON.parse(JSON.stringify(x)));
+    return clampActive({ room:base.room||defaultRoom(), fixtures,
+      plans:raw.plans.map(p=>({id:p.id||pid(), name:p.name||"レイアウト", furniture:(p.items||[]).filter(i=>!isFixture(i))})), active:raw.active });
+  }
+  // 旧単一形式 {room,items}
+  if(raw.room && Array.isArray(raw.items)){
+    return { room:raw.room, fixtures:raw.items.filter(isFixture),
+      plans:[ {id:pid(), name:"レイアウト1", furniture:raw.items.filter(i=>!isFixture(i))} ], active:0 };
+  }
+  return freshDoc();
+}
+function loadDoc(){ let raw=null; try{ raw=JSON.parse(localStorage.getItem(KEY)); }catch(e){ raw=null; } return migrateToDoc(raw); }
+let doc = loadDoc();
+let state = { room:null, items:[] };   // 表示用：room=共通の部屋、items=共通設備＋表示中レイアウトの家具
+function activePlan(){ return doc.plans[doc.active]; }
+function rebuildState(){ state.room = doc.room; state.items = doc.fixtures.concat(activePlan().furniture); }
+rebuildState();
+// 追加・削除はここを通して、設備=共通、家具=レイアウトへ振り分ける
+function addThing(it){ if(isFixture(it)) doc.fixtures.push(it); else activePlan().furniture.push(it); rebuildState(); }
+function deleteItems(idSet){
+  doc.fixtures = doc.fixtures.filter(i=>!idSet.has(i.id));
+  activePlan().furniture = activePlan().furniture.filter(i=>!idSet.has(i.id));
+  selection = selection.filter(id=>!idSet.has(id));
+  selectedId = selection.length ? selection[selection.length-1] : null;
+  rebuildState(); refreshPanel(); save(); render();
+}
+let view = { S: 1, panX: 0, panY: 0, zoom: 1 };
+let selectedId = null;      // 代表（1つだけ選択中のときの対象）
+let selection = [];         // 複数選択中のidリスト
+let dragMode = "select";    // 背景ドラッグの動作： "select"=範囲選択 / "pan"=画面移動
+let cornerEditMode = false;
+let lastDimInput = null;
+
+const svg = document.getElementById("svg");
+const SVGNS = "http://www.w3.org/2000/svg";
+
+// ===== ダイアログ =====
+function openDlg(o){
+  const d=document.getElementById("dlg"), inp=document.getElementById("dlgInput"), ta=document.getElementById("dlgText");
+  const ok=document.getElementById("dlgOk"), cancel=document.getElementById("dlgCancel"), copy=document.getElementById("dlgCopy");
+  document.getElementById("dlgMsg").textContent=o.msg||"";
+  inp.hidden=!("input" in o); inp.value=o.input||"";
+  ta.hidden=!("text" in o); ta.value=o.text||""; ta.readOnly=!!o.readOnly;
+  copy.hidden=!o.copy; cancel.hidden=o.cancel===false;
+  ok.textContent=o.okLabel||"OK";
+  copy.textContent="コピー";
+  copy.onclick=()=>{
+    const done=()=>{ copy.textContent="コピーしました"; };
+    try{ navigator.clipboard.writeText(ta.value).then(done,()=>{ ta.select(); }); }catch(e){ ta.select(); }
+  };
+  const close=()=>{ d.hidden=true; };
+  cancel.onclick=close;
+  ok.onclick=()=>{ close(); if(o.onOk) o.onOk(!inp.hidden?inp.value:ta.value); };
+  d.hidden=false;
+  if(!inp.hidden) inp.focus(); else if(!ta.hidden && !o.readOnly) ta.focus();
+}
+function showMsg(msg){ openDlg({msg, cancel:false}); }
+
+// ===== 保存・元に戻す（全レイアウトをまとめて保存）=====
+let undoStack = [], redoStack = [];
+let prevSnapshot = JSON.stringify(doc);
+function save() {
+  const cur = JSON.stringify(doc);
+  if (cur !== prevSnapshot) {
+    undoStack.push(prevSnapshot);
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+    prevSnapshot = cur;
+  }
+  store(cur);
+  if(typeof renderList==="function") renderList();
+}
+function restore(s){
+  doc = clampActive(JSON.parse(s));
+  rebuildState();
+  prevSnapshot = s; store(s);
+  selectedId = null; selection = [];
+  selectItem(null); render();
+  if(typeof renderPlanTabs==="function") renderPlanTabs();
+}
+function undo(){ if(!undoStack.length) return; redoStack.push(JSON.stringify(doc)); restore(undoStack.pop()); }
+function redo(){ if(!redoStack.length) return; undoStack.push(JSON.stringify(doc)); restore(redoStack.pop()); }
+
+// ===== レイアウト（プラン）切替・複製 =====
+function switchPlan(idx){
+  if(idx<0||idx>=doc.plans.length) return;
+  doc.active=idx; rebuildState();
+  save(); selectItem(null); fitView(); renderPlanTabs();
+}
+function dupPlan(){
+  const cur=doc.plans[doc.active];
+  // 部屋・固定設備は共通。家具だけコピーした新レイアウトを作る
+  const np={ id:pid(), name:(cur.name||"レイアウト")+" のコピー", furniture:JSON.parse(JSON.stringify(cur.furniture)) };
+  doc.plans.splice(doc.active+1,0,np);
+  doc.active=doc.active+1; rebuildState();
+  save(); selectItem(null); fitView(); renderPlanTabs();
+}
+function newPlan(){
+  // 同じ部屋・設備のまま、家具だけ空っぽの新規レイアウト
+  const np={ id:pid(), name:"レイアウト"+(doc.plans.length+1), furniture:[] };
+  doc.plans.push(np);
+  doc.active=doc.plans.length-1; rebuildState();
+  save(); selectItem(null); fitView(); renderPlanTabs();
+}
+function renamePlan(idx){
+  const pl=doc.plans[idx]; if(!pl) return;
+  openDlg({msg:"レイアウトの名前", input:pl.name||"", onOk:nm=>{ pl.name=nm.trim()||pl.name; save(); renderPlanTabs(); }});
+}
+function deletePlan(idx){
+  if(doc.plans.length<=1) return;
+  openDlg({msg:"このレイアウト「"+(doc.plans[idx].name||"")+"」を削除します。よろしいですか？", okLabel:"削除する", onOk:()=>{
+    doc.plans.splice(idx,1);
+    if(doc.active>=doc.plans.length) doc.active=doc.plans.length-1;
+    rebuildState();
+    save(); selectItem(null); fitView(); renderPlanTabs();
+  }});
+}
+function renderPlanTabs(){
+  const box=document.getElementById("planTabs"); if(!box) return;
+  box.innerHTML="";
+  doc.plans.forEach((pl,idx)=>{
+    const t=document.createElement("div"); t.className="plantab"+(idx===doc.active?" on":"");
+    const nm=document.createElement("span");
+    nm.textContent=pl.name||("レイアウト"+(idx+1));
+    nm.title="クリックで切替／ダブルクリックで名前変更";
+    nm.addEventListener("click",()=>switchPlan(idx));
+    nm.addEventListener("dblclick",()=>renamePlan(idx));
+    t.appendChild(nm);
+    if(doc.plans.length>1){
+      const x=document.createElement("button"); x.className="planx"; x.textContent="×"; x.title="このレイアウトを削除";
+      x.addEventListener("click",e=>{ e.stopPropagation(); deletePlan(idx); });
+      t.appendChild(x);
+    }
+    box.appendChild(t);
+  });
+}
+
+// ===== 座標変換 =====
+function roomBounds() {
+  const p = state.room.points;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for (const pt of p) { minX=Math.min(minX,pt.x); minY=Math.min(minY,pt.y); maxX=Math.max(maxX,pt.x); maxY=Math.max(maxY,pt.y); }
+  return {minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY};
+}
+function fitView() {
+  const r = roomBounds();
+  const W = svg.clientWidth, H = svg.clientHeight;
+  const pad = 60;
+  const sx = (W-pad*2)/r.w, sy = (H-pad*2)/r.h;
+  view.zoom = 1;
+  view.S = Math.min(sx, sy);
+  view.panX = (W - r.w*view.S)/2 - r.minX*view.S;
+  view.panY = (H - r.h*view.S)/2 - r.minY*view.S;
+  render();
+}
+function sx(x){ return x*view.S*view.zoom + view.panX; }
+function sy(y){ return y*view.S*view.zoom + view.panY; }
+function toWorld(px,py){ return { x:(px-view.panX)/(view.S*view.zoom), y:(py-view.panY)/(view.S*view.zoom) }; }
+// マウス位置をSVGの左上を基準にした座標へ（部品ごとにズレないように）
+function ptr(e){ const r=svg.getBoundingClientRect(); return { px:e.clientX-r.left, py:e.clientY-r.top }; }
+function ppc(){ return view.S*view.zoom; } // pixel per cm
+
+// ===== 描画 =====
+function el(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function render() {
+  svg.innerHTML = "";
+  drawGrid();
+  drawRoom();
+  for (const it of state.items) drawItem(it);
+  if (cornerEditMode) drawCornerHandles();
+  const sel = (selection.length===1) ? state.items.find(i=>i.id===selectedId) : null;
+  if (sel) { if(!sel.listOnly && sel.kind!=="door" && sel.kind!=="outlet") drawMargins(sel); drawRotateHandle(sel); }
+  updateTotal();
+}
+function updateTotal(){
+  const furn=state.items.filter(i=>i.kind!=="pillar"&&i.kind!=="door"&&i.kind!=="outlet");
+  const sum=furn.reduce((a,i)=>a+(i.price||0),0);
+  const e=document.getElementById("totalPrice");
+  if(e) e.textContent="¥"+sum.toLocaleString("ja-JP")+"　("+furn.length+"点)";
+  const lt=document.getElementById("listTotal");
+  if(lt) lt.textContent="合計 ¥"+sum.toLocaleString("ja-JP")+"　("+furn.length+"点)";
+}
+
+// ===== タブ切替 =====
+function switchTab(which){
+  document.getElementById("tabEdit").style.display = which==="edit"?"block":"none";
+  document.getElementById("tabList").style.display = which==="list"?"block":"none";
+  document.getElementById("tabBtnEdit").classList.toggle("on", which==="edit");
+  document.getElementById("tabBtnList").classList.toggle("on", which==="list");
+  if(which==="list") renderList();
+}
+document.getElementById("tabBtnEdit").addEventListener("click",()=>switchTab("edit"));
+document.getElementById("tabBtnList").addEventListener("click",()=>switchTab("list"));
+document.getElementById("listSort").addEventListener("change",e=>{ listSort=e.target.value; renderList(); });
+
+// ===== 家具リスト（ツール内タブ）=====
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+let listSort="added";
+function itemArea(it){
+  if(it.kind==="door") return (it.width||0);
+  if(it.kind==="outlet") return 0;
+  if(it.shape==="circle") return Math.PI*Math.pow((it.dia||0)/2,2);
+  if(it.shape==="square") return Math.pow(it.side||0,2);
+  return (it.w||0)*(it.d||0);
+}
+function sortedItems(){
+  const arr=state.items.map((it,i)=>({it,i})); // 元の順番(i)も保持
+  const cmp={
+    "price-desc":(a,b)=>(b.it.price||0)-(a.it.price||0),
+    "price-asc":(a,b)=>(a.it.price||0)-(b.it.price||0),
+    "size-desc":(a,b)=>itemArea(b.it)-itemArea(a.it),
+    "size-asc":(a,b)=>itemArea(a.it)-itemArea(b.it),
+    "name":(a,b)=>String(a.it.name||"").localeCompare(String(b.it.name||""),"ja"),
+  }[listSort];
+  if(cmp) arr.sort((a,b)=> cmp(a,b) || (a.i-b.i)); // 同値は追加順で安定
+  return arr.map(x=>x.it);
+}
+function renderList(){
+  const box=document.getElementById("listBox"); if(!box) return;
+  const empty=document.getElementById("listEmpty");
+  box.innerHTML="";
+  const list=sortedItems().filter(it=>!isFixture(it)); // 家具のみ（ドア・コンセント・柱は除外）
+  empty.style.display = list.length ? "none" : "block";
+  list.forEach(it=>{
+    const isPillar=it.kind==="pillar";
+    const isDoor=it.kind==="door";
+    const isOutlet=it.kind==="outlet";
+    const noPrice=isPillar||isDoor||isOutlet;
+    let meta;
+    if(isOutlet) meta="コンセント";
+    else if(isDoor) meta=(it.doorType==="slide"?"引き戸":"開き戸")+" 幅"+it.width+"cm";
+    else if(it.shape==="circle") meta="円 直径"+it.dia+"cm";
+    else if(it.shape==="square") meta="正方形 "+it.side+"×"+it.side+"cm";
+    else meta="長方形 "+it.w+"×"+it.d+"cm";
+    const isLO=!!it.listOnly;
+    const badge=isLO?'<span class="pill-badge">配置なし</span>':"";
+    const priceRow=noPrice?"":'<div class="cpriceedit">価格 ¥<input type="text" inputmode="numeric" class="cprice-input" value="'+fmtYen(it.price)+'" placeholder="0"></div>';
+    const lc=linkedCount(it);
+    const linked=(lc>1 && !noPrice);
+    const linkNote=linked?'<div style="font-size:11px;color:#3d9b84;margin-top:4px;">🔗 同じ家具 ×'+lc+'（価格は連動）</div>':"";
+    const unlinkBtn=linked?'<button data-act="unlink">リンク解除</button>':"";
+    const selBtn=isLO?'<button data-act="sel">選択</button>':'<button data-act="sel">選択して中央へ</button>';
+    const card=document.createElement("div");
+    card.className="card"+(selection.includes(it.id)?" sel":"");
+    card.innerHTML=
+      '<div class="cname"><span>'+escapeHtml(it.name||"家具")+badge+'</span></div>'
+      +'<div class="cmeta">'+meta+'</div>'
+      +priceRow+linkNote
+      +(it.url?'<a class="clink" href="'+escapeHtml(it.url)+'" target="_blank" rel="noopener">商品ページを開く ↗</a>':"")
+      +'<div class="cbtns">'+selBtn+'<button data-act="dup">複製</button>'+unlinkBtn+'<button data-act="del" class="danger">削除</button></div>';
+    card.addEventListener("click",e=>{
+      if(e.target.closest("a")) return;
+      if(e.target.closest(".cprice-input")) return; // 価格入力中は選択しない
+      const btn=e.target.closest("button"); const act=btn&&btn.dataset.act;
+      if(act==="dup"){ dupOf(it.id); return; }
+      if(act==="del"){ delOf(it.id); return; }
+      if(act==="unlink"){ unlinkGroup(it); return; }
+      selectItem(it.id); if(!it.listOnly) centerOn(it);
+    });
+    const pinp=card.querySelector(".cprice-input");
+    if(pinp){
+      pinp.addEventListener("input",()=>{ applyPrice(it, parseYen(pinp.value)); updateTotal(); }); // 入力中は合計だけ更新（カードは作り直さない）
+      pinp.addEventListener("change",()=>{ applyPrice(it, parseYen(pinp.value)); pinp.value=fmtYen(it.price); save(); }); // 確定でカンマ整形＋保存＋連動
+    }
+    box.appendChild(card);
+  });
+  updateTotal();
+}
+// 同じ商品（複製どうし）のリンク
+function lid(){ return "L"+Math.floor(performance.now()*1000).toString(36); }
+function linkedCount(item){ return item.linkId ? state.items.filter(o=>o.linkId===item.linkId).length : 1; }
+// 価格を反映（リンク先の複製にも同じ価格を反映）
+function applyPrice(item, val){
+  item.price=val;
+  if(item.linkId){ state.items.forEach(o=>{ if(o.linkId===item.linkId) o.price=val; }); }
+}
+// 金額の整形（カンマ）と読み取り
+function parseYen(str){ return parseInt(String(str).replace(/[^\d]/g,""),10)||0; }
+function fmtYen(n){ return n ? Number(n).toLocaleString("ja-JP") : ""; }
+// 同じ商品グループの連動を解除（全員バラバラにして1個ずつ価格を変えられるように）
+function unlinkGroup(item){
+  const lk=item.linkId; if(!lk) return;
+  state.items.forEach(o=>{ if(o.linkId===lk) delete o.linkId; });
+  save();
+}
+function dupOf(id){
+  const sel=state.items.find(i=>i.id===id); if(!sel) return;
+  if(!isFixture(sel) && !sel.linkId) sel.linkId=lid();  // 家具のみ：元にもリンクID（以後は同じ商品として連動）
+  const copy=JSON.parse(JSON.stringify(sel)); copy.id=uid(); copy.x+=30; copy.y+=30; // linkId は引き継がれ共有される
+  addThing(copy); save(); selectItem(copy.id);
+}
+function delOf(id){ deleteItems(new Set([id])); }
+// 選んだ家具を画面の中央に持ってくる（拡大率はそのまま）
+function centerOn(it){
+  const S=view.S*view.zoom;
+  view.panX = svg.clientWidth/2 - it.x*S;
+  view.panY = svg.clientHeight/2 - it.y*S;
+  render();
+}
+
+// ===== 回転ハンドル（ドラッグで角度変更） =====
+function drawRotateHandle(it){
+  if(it.listOnly) return;        // 配置しない項目は対象外
+  if(it.kind==="outlet") return; // コンセントは回転しない
+  if(it.kind!=="door" && it.shape==="circle") return; // 円は回しても同じなので無し（ドアは回せる）
+  const cx=sx(it.x), cy=sy(it.y);
+  const w=(it.kind==="door"?it.width:(it.shape==="square"?it.side:it.w))*ppc();
+  const h=(it.kind==="door"?it.width:(it.shape==="square"?it.side:it.d))*ppc();
+  const d=Math.max(w,h)/2 + 30;
+  const theta=((it.rot||0)-90)*Math.PI/180;
+  const hx=cx+d*Math.cos(theta), hy=cy+d*Math.sin(theta);
+  svg.appendChild(el("line",{x1:cx,y1:cy,x2:hx,y2:hy,stroke:"#7e8fc9","stroke-width":1.5}));
+  const handle=el("circle",{cx:hx,cy:hy,r:8,fill:"#fff",stroke:"#c2618e","stroke-width":2});
+  handle.style.cursor="grab";
+  handle.addEventListener("pointerdown",e=>startRotate(e,it));
+  svg.appendChild(handle);
+}
+function startRotate(e,it){
+  e.stopPropagation();
+  const cx=sx(it.x), cy=sy(it.y);
+  function move(ev){
+    const p=ptr(ev);
+    let ang=Math.atan2(p.py-cy, p.px-cx)*180/Math.PI + 90;
+    ang=(ang%360+360)%360;
+    const near=Math.round(ang/15)*15;          // 15度の近くは吸い付く
+    if(Math.abs(ang-near)<4) ang=near%360;
+    it.rot=Math.round(ang);
+    const inp=document.getElementById("selRot"); if(inp) inp.value=it.rot;
+    render();
+  }
+  function up(){ svg.removeEventListener("pointermove",move); svg.removeEventListener("pointerup",up); save(); }
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerup",up);
+}
+
+function drawGrid() {
+  const r = roomBounds();
+  const step = 50; // 50cm
+  const g = el("g", {});
+  const x0 = Math.floor(r.minX/step)*step, x1 = Math.ceil(r.maxX/step)*step;
+  const y0 = Math.floor(r.minY/step)*step, y1 = Math.ceil(r.maxY/step)*step;
+  for (let x=x0; x<=x1; x+=step)
+    g.appendChild(el("line",{x1:sx(x),y1:sy(y0),x2:sx(x),y2:sy(y1),stroke:"#e0e3e8","stroke-width":1}));
+  for (let y=y0; y<=y1; y+=step)
+    g.appendChild(el("line",{x1:sx(x0),y1:sy(y),x2:sx(x1),y2:sy(y),stroke:"#e0e3e8","stroke-width":1}));
+  svg.appendChild(g);
+}
+
+function drawRoom() {
+  const pts = state.room.points.map(p=>`${sx(p.x)},${sy(p.y)}`).join(" ");
+  svg.appendChild(el("polygon",{points:pts, fill:"#ffffff", stroke:"#3a4250","stroke-width":4, "stroke-linejoin":"round"}));
+  // 各辺の長さ表示
+  const p = state.room.points;
+  for (let i=0;i<p.length;i++){
+    const a=p[i], b=p[(i+1)%p.length];
+    const len = Math.round(Math.hypot(b.x-a.x,b.y-a.y));
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    const t = el("text",{x:sx(mx),y:sy(my),"font-size":12,fill:"#7a828d","text-anchor":"middle","dominant-baseline":"middle"});
+    t.textContent = len+"cm";
+    // 内側に少しずらす
+    t.setAttribute("dy", -5);
+    svg.appendChild(t);
+  }
+}
+
+function itemColor(it){ return it.color || "#9ec5fe"; }
+
+function drawItem(it) {
+  if (it.listOnly) return; // 配置しない項目はキャンバスに描かない
+  const g = el("g", { class:"item-shape", "data-id":it.id });
+  const cx = sx(it.x), cy = sy(it.y);
+  const selected = selection.includes(it.id);
+  if (it.kind==="door") { drawDoorInto(g, it, selected); g.addEventListener("pointerdown", e=>startDragItem(e,it)); svg.appendChild(g); return; }
+  if (it.kind==="outlet") { drawOutletInto(g, it, selected); g.addEventListener("pointerdown", e=>startDragItem(e,it)); svg.appendChild(g); return; }
+  const isPillar = it.kind==="pillar";
+  const stroke = selected ? "#c2618e" : (isPillar ? "#5b626d" : "#5b6470");
+  const sw = selected ? 3 : 1.5;
+  const fill = selected
+    ? (isPillar ? "#c4c9d1" : "#f1d8e3")
+    : (isPillar ? "rgba(120,128,140,.55)" : "rgba(126,143,201,.38)");
+  if (it.shape==="circle") {
+    const r = (it.dia/2)*ppc();
+    g.appendChild(el("circle",{cx,cy,r,fill,stroke,"stroke-width":sw}));
+  } else {
+    const w = (it.shape==="square"?it.side:it.w)*ppc();
+    const h = (it.shape==="square"?it.side:it.d)*ppc();
+    const rect = el("rect",{x:cx-w/2,y:cy-h/2,width:w,height:h,fill,stroke,"stroke-width":sw,rx:2});
+    rect.setAttribute("transform",`rotate(${it.rot||0} ${cx} ${cy})`);
+    g.appendChild(rect);
+  }
+  // ラベル
+  const label = el("text",{x:cx,y:cy,"text-anchor":"middle","dominant-baseline":"middle","font-size":12,fill:"#33404f","pointer-events":"none"});
+  label.textContent = it.name || "家具";
+  g.appendChild(label);
+  const sub = el("text",{x:cx,y:cy+14,"text-anchor":"middle","dominant-baseline":"middle","font-size":10,fill:"#6b7480","pointer-events":"none"});
+  sub.textContent = sizeText(it);
+  g.appendChild(sub);
+
+  g.addEventListener("pointerdown", e => startDragItem(e, it));
+  svg.appendChild(g);
+}
+
+function sizeText(it){
+  if (it.shape==="circle") return "φ"+it.dia;
+  if (it.shape==="square") return it.side+"×"+it.side;
+  return it.w+"×"+it.d;
+}
+
+// ドア（平面図記号）を描く
+function drawDoorInto(g, it, selected){
+  const W=it.width||80;
+  const rot=(it.rot||0)*Math.PI/180;
+  const s=it.flip?-1:1;
+  const col=selected?"#c2618e":"#9c6b3f";
+  // ローカル座標(扉の蝶番=原点, 壁方向=x軸)を画面座標へ
+  function P(lx,ly){
+    const wx=it.x + lx*Math.cos(rot)-ly*Math.sin(rot);
+    const wy=it.y + lx*Math.sin(rot)+ly*Math.cos(rot);
+    return {x:sx(wx), y:sy(wy)};
+  }
+  const ptsStr=a=>a.map(p=>p.x+","+p.y).join(" ");
+  if(it.doorType==="slide"){
+    // 引き戸：2枚の戸が前後にずれて重なる表現
+    const t=7; // 戸の厚み(cm)
+    const A=[P(-W/2,0),P(W*0.10,0),P(W*0.10,t),P(-W/2,t)];
+    const B=[P(-W*0.10,-t),P(W/2,-t),P(W/2,0),P(-W*0.10,0)];
+    g.appendChild(el("polygon",{points:ptsStr(A),fill:"rgba(156,107,63,.20)",stroke:col,"stroke-width":selected?2:1.3}));
+    g.appendChild(el("polygon",{points:ptsStr(B),fill:"rgba(156,107,63,.35)",stroke:col,"stroke-width":selected?2:1.3}));
+    // クリック用の透明な当たり判定
+    g.appendChild(el("polygon",{points:ptsStr([P(-W/2,-t-5),P(W/2,-t-5),P(W/2,t+5),P(-W/2,t+5)]),fill:"rgba(0,0,0,0)"}));
+  } else {
+    // 開き戸：1/4円の円弧 + 扉
+    const steps=18, pts=[];
+    for(let i=0;i<=steps;i++){ const a=(s*Math.PI/2)*(i/steps); pts.push(P(W*Math.cos(a), W*Math.sin(a))); }
+    const hinge=P(0,0), leafEnd=P(0,s*W), wallEnd=P(W,0);
+    // 開閉範囲の薄い塗り
+    g.appendChild(el("polygon",{points:ptsStr([hinge,...pts]),fill:"rgba(156,107,63,.10)",stroke:"none"}));
+    // 円弧
+    g.appendChild(el("polyline",{points:ptsStr(pts),fill:"none",stroke:col,"stroke-width":selected?2.5:1.5}));
+    // 壁の開口線（蝶番→壁側）
+    g.appendChild(el("line",{x1:hinge.x,y1:hinge.y,x2:wallEnd.x,y2:wallEnd.y,stroke:col,"stroke-width":1,"stroke-dasharray":"3 3"}));
+    // 扉本体（蝶番→開いた先）
+    g.appendChild(el("line",{x1:hinge.x,y1:hinge.y,x2:leafEnd.x,y2:leafEnd.y,stroke:col,"stroke-width":selected?4:3}));
+    // 当たり判定（扇形を覆う四角）
+    g.appendChild(el("polygon",{points:ptsStr([P(0,0),P(W,0),P(W,s*W),P(0,s*W)]),fill:"rgba(0,0,0,0)"}));
+  }
+  // ラベル
+  const lp=P(W*0.5, s*W*0.28);
+  const label=el("text",{x:lp.x,y:lp.y,"text-anchor":"middle","dominant-baseline":"middle","font-size":11,fill:col,"pointer-events":"none"});
+  label.textContent=it.name||"ドア";
+  g.appendChild(label);
+}
+
+// コンセント（平面図記号）を描く
+function drawOutletInto(g, it, selected){
+  const cx=sx(it.x), cy=sy(it.y);
+  const r=9*ppc();
+  const col=selected?"#c2618e":"#c77d2e";
+  // 当たり判定＆地の丸（白塗りなのでクリックを受ける）
+  g.appendChild(el("circle",{cx,cy,r,fill:"#fff",stroke:col,"stroke-width":selected?2.5:1.6}));
+  // 差込口の2本線
+  const p=4*ppc();
+  g.appendChild(el("line",{x1:cx-p*0.45,y1:cy-p,x2:cx-p*0.45,y2:cy+p,stroke:col,"stroke-width":1.6}));
+  g.appendChild(el("line",{x1:cx+p*0.45,y1:cy-p,x2:cx+p*0.45,y2:cy+p,stroke:col,"stroke-width":1.6}));
+  // ラベル
+  const label=el("text",{x:cx,y:cy+r+9,"text-anchor":"middle","dominant-baseline":"middle","font-size":10,fill:col,"pointer-events":"none"});
+  label.textContent=it.name||"コンセント";
+  g.appendChild(label);
+}
+
+// ===== 余白計算 =====
+function itemAABB(it){
+  if (it.shape==="circle"){
+    const r=it.dia/2; return {minX:it.x-r,maxX:it.x+r,minY:it.y-r,maxY:it.y+r};
+  }
+  const w=(it.shape==="square"?it.side:it.w)/2, h=(it.shape==="square"?it.side:it.d)/2;
+  const rot=(it.rot||0)*Math.PI/180;
+  const corners=[[-w,-h],[w,-h],[w,h],[-w,h]].map(([dx,dy])=>({
+    x: it.x + dx*Math.cos(rot)-dy*Math.sin(rot),
+    y: it.y + dx*Math.sin(rot)+dy*Math.cos(rot)
+  }));
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const c of corners){minX=Math.min(minX,c.x);maxX=Math.max(maxX,c.x);minY=Math.min(minY,c.y);maxY=Math.max(maxY,c.y);}
+  return {minX,maxX,minY,maxY};
+}
+// 点(px,py)から方向(dx,dy)へ進んで部屋の壁にぶつかる距離(cm)
+function rayDist(px,py,dx,dy){
+  const p=state.room.points; let best=Infinity;
+  for(let i=0;i<p.length;i++){
+    const a=p[i], b=p[(i+1)%p.length];
+    const ex=b.x-a.x, ey=b.y-a.y;
+    const denom = dx*ey - dy*ex;
+    if(Math.abs(denom)<1e-9) continue;
+    const t = ((a.x-px)*ey - (a.y-py)*ex)/denom;     // ray param
+    const u = ((a.x-px)*dy - (a.y-py)*dx)/denom;     // segment param
+    if(t>0.001 && u>=-0.001 && u<=1.001) best=Math.min(best,t);
+  }
+  return best;
+}
+function aabbOverlapY(a,b){ return a.minY < b.maxY-1 && a.maxY > b.minY+1; } // 縦方向に重なっているか
+function aabbOverlapX(a,b){ return a.minX < b.maxX-1 && a.maxX > b.minX+1; } // 横方向に重なっているか
+function clearance(it){
+  const bb=itemAABB(it);
+  const cy=(bb.minY+bb.maxY)/2, cx=(bb.minX+bb.maxX)/2;
+  const sampY=[bb.minY+1, cy, bb.maxY-1];
+  const sampX=[bb.minX+1, cx, bb.maxX-1];
+  // 壁までの距離
+  const wallR=Math.min(...sampY.map(y=>rayDist(bb.maxX,y,1,0)));
+  const wallL=Math.min(...sampY.map(y=>rayDist(bb.minX,y,-1,0)));
+  const wallU=Math.min(...sampX.map(x=>rayDist(x,bb.minY,0,-1)));
+  const wallD=Math.min(...sampX.map(x=>rayDist(x,bb.maxY,0,1)));
+  // 他の家具のAABB
+  const others=state.items.filter(o=>o.id!==it.id && o.kind!=="door" && o.kind!=="outlet" && !o.listOnly).map(o=>({name:o.name||"家具", bb:itemAABB(o)}));
+  function nearestFurn(dir){
+    let best=Infinity, name=null;
+    for(const o of others){
+      let d;
+      if(dir==="right"){ if(aabbOverlapY(bb,o.bb) && o.bb.minX>=bb.maxX-1) d=o.bb.minX-bb.maxX; }
+      else if(dir==="left"){ if(aabbOverlapY(bb,o.bb) && o.bb.maxX<=bb.minX+1) d=bb.minX-o.bb.maxX; }
+      else if(dir==="up"){ if(aabbOverlapX(bb,o.bb) && o.bb.maxY<=bb.minY+1) d=bb.minY-o.bb.maxY; }
+      else { if(aabbOverlapX(bb,o.bb) && o.bb.minY>=bb.maxY-1) d=o.bb.minY-bb.maxY; }
+      if(d!==undefined && d<best){ best=d; name=o.name; }
+    }
+    return {d:best,name};
+  }
+  // 壁と家具のうち近いほうを採用
+  function combine(wall,dir){
+    const f=nearestFurn(dir);
+    if(f.d < wall) return {d:Math.max(0,f.d), type:"furn", name:f.name};
+    return {d:wall, type:"wall", name:null};
+  }
+  return { bb,
+    right:combine(wallR,"right"), left:combine(wallL,"left"),
+    up:combine(wallU,"up"), down:combine(wallD,"down") };
+}
+
+function drawMargins(it){
+  const c=clearance(it); const bb=c.bb;
+  const cyW=(bb.minY+bb.maxY)/2, cxW=(bb.minX+bb.maxX)/2;
+  const lines=[
+    {x1:cxW,y1:bb.minY,x2:cxW,y2:bb.minY-c.up.d, info:c.up},
+    {x1:cxW,y1:bb.maxY,x2:cxW,y2:bb.maxY+c.down.d, info:c.down},
+    {x1:bb.minX,y1:cyW,x2:bb.minX-c.left.d,y2:cyW, info:c.left},
+    {x1:bb.maxX,y1:cyW,x2:bb.maxX+c.right.d,y2:cyW, info:c.right},
+  ];
+  for(const L of lines){
+    const v=L.info.d; if(!isFinite(v)) continue;
+    const col = L.info.type==="furn" ? "#3d9b84" : "#e8590c"; // 家具までは緑、壁まではオレンジ
+    svg.appendChild(el("line",{x1:sx(L.x1),y1:sy(L.y1),x2:sx(L.x2),y2:sy(L.y2),stroke:col,"stroke-width":1.5,"stroke-dasharray":"5 4"}));
+    const t=el("text",{x:sx((L.x1+L.x2)/2),y:sy((L.y1+L.y2)/2),"font-size":12,fill:col,"text-anchor":"middle","dominant-baseline":"middle"});
+    t.textContent=Math.round(v)+"cm";
+    svg.appendChild(t);
+  }
+  // パネル更新
+  setMargin("mUp",c.up); setMargin("mDown",c.down); setMargin("mLeft",c.left); setMargin("mRight",c.right);
+}
+function setMargin(id,info){
+  const e=document.getElementById(id);
+  if(!isFinite(info.d)){ e.textContent="—"; return; }
+  e.textContent=Math.round(info.d)+"cm"+(info.type==="furn" ? "（"+info.name+"）" : "");
+}
+
+// ===== 角ハンドル =====
+function drawCornerHandles(){
+  state.room.points.forEach((p,idx)=>{
+    const h=el("circle",{cx:sx(p.x),cy:sy(p.y),r:7,class:"corner-handle","data-idx":idx});
+    h.addEventListener("pointerdown",e=>startDragCorner(e,idx));
+    svg.appendChild(h);
+  });
+}
+
+// ===== ドラッグ：家具 =====
+function startDragItem(e, it){
+  e.stopPropagation();
+  // つかんだ家具が選択に含まれていなければ、それだけを選択（複数選択中ならその選択を保つ）
+  if(!selection.includes(it.id)) selectItem(it.id);
+  const p0=ptr(e); const start=toWorld(p0.px,p0.py);
+  // 選択中すべての元位置を覚えて、まとめて動かす
+  const movers=selection.map(id=>state.items.find(i=>i.id===id)).filter(Boolean).map(o=>({o,x0:o.x,y0:o.y}));
+  let moved=false;
+  function move(ev){
+    const p=ptr(ev); const w=toWorld(p.px,p.py);
+    const dx=w.x-start.x, dy=w.y-start.y;
+    movers.forEach(m=>{ m.o.x=Math.round(m.x0+dx); m.o.y=Math.round(m.y0+dy); });
+    moved=true; render();
+  }
+  function up(){
+    svg.removeEventListener("pointermove",move); svg.removeEventListener("pointerup",up);
+    if(moved) save();
+    else if(selection.length>1) selectItem(it.id); // 動かさずクリック＝その1つだけ選択
+  }
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerup",up);
+}
+
+// ===== ドラッグ：角 =====
+function startDragCorner(e, idx){
+  e.stopPropagation();
+  function move(ev){
+    const p=ptr(ev); const w=toWorld(p.px,p.py);
+    state.room.points[idx]={x:Math.round(w.x/5)*5,y:Math.round(w.y/5)*5};
+    render();
+  }
+  function up(){ svg.removeEventListener("pointermove",move); svg.removeEventListener("pointerup",up); save(); }
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerup",up);
+}
+
+// 辺ダブルクリックで角追加
+svg.addEventListener("dblclick", e=>{
+  if(!cornerEditMode) return;
+  const p0=ptr(e); const w=toWorld(p0.px,p0.py);
+  const p=state.room.points; let best=Infinity,bi=-1;
+  for(let i=0;i<p.length;i++){
+    const a=p[i], b=p[(i+1)%p.length];
+    const d=distToSeg(w,a,b);
+    if(d<best){best=d;bi=i;}
+  }
+  if(bi>=0 && best < 30){ // 30cm以内の辺に追加
+    p.splice(bi+1,0,{x:Math.round(w.x),y:Math.round(w.y)});
+    save(); render();
+  }
+});
+function distToSeg(p,a,b){
+  const vx=b.x-a.x, vy=b.y-a.y, wx=p.x-a.x, wy=p.y-a.y;
+  const t=Math.max(0,Math.min(1,(wx*vx+wy*vy)/(vx*vx+vy*vy||1)));
+  return Math.hypot(p.x-(a.x+t*vx), p.y-(a.y+t*vy));
+}
+
+// 角削除（選択した角は無いのでDeleteは家具のみ→角はクリックで選び削除する簡易版）
+let clipboard=[]; let pasteOffset=0;
+function copySelection(){
+  clipboard = selection.map(id=>state.items.find(i=>i.id===id)).filter(Boolean).map(o=>JSON.parse(JSON.stringify(o)));
+  pasteOffset=0;
+}
+function pasteClipboard(){
+  if(!clipboard.length) return;
+  pasteOffset+=25;
+  const newIds=[];
+  clipboard.forEach(src=>{
+    const copy=JSON.parse(JSON.stringify(src));
+    copy.id=uid();
+    copy.x=(copy.x||0)+pasteOffset; copy.y=(copy.y||0)+pasteOffset;
+    delete copy.linkId;           // コピペは独立（金額は連動しない）
+    addThing(copy); newIds.push(copy.id);
+  });
+  save(); setSelection(newIds);
+}
+document.addEventListener("keydown", e=>{
+  const meta = e.ctrlKey || e.metaKey;
+  const inField = document.activeElement && (document.activeElement.tagName==="INPUT" || document.activeElement.tagName==="TEXTAREA");
+  if(meta && e.key.toLowerCase()==="z"){
+    if(inField) return; // 入力欄内は通常のやり直し
+    e.preventDefault();
+    if(e.shiftKey) redo(); else undo();
+    return;
+  }
+  if(meta && e.key.toLowerCase()==="c"){
+    if(inField) return; // 入力欄内は文字のコピー
+    if(selection.length){ e.preventDefault(); copySelection(); }
+    return;
+  }
+  if(meta && e.key.toLowerCase()==="v"){
+    if(inField) return; // 入力欄内は文字の貼り付け
+    if(clipboard.length){ e.preventDefault(); pasteClipboard(); }
+    return;
+  }
+  if(e.key==="Delete"||e.key==="Backspace"){
+    if(selection.length && !inField){
+      delSelectedAll();
+    }
+  }
+});
+
+// ===== 背景ドラッグ：範囲選択 または 画面移動 =====
+svg.addEventListener("pointerdown", e=>{
+  if(e.target.closest(".item-shape")||e.target.closest(".corner-handle")) return;
+  if(dragMode==="pan"){
+    svg.classList.add("grabbing");
+    const p0=ptr(e); const sx0=p0.px, sy0=p0.py, px0=view.panX, py0=view.panY;
+    function move(ev){ const p=ptr(ev); view.panX=px0+(p.px-sx0); view.panY=py0+(p.py-sy0); render(); }
+    function up(){ svg.removeEventListener("pointermove",move); svg.removeEventListener("pointerup",up); svg.classList.remove("grabbing"); }
+    svg.addEventListener("pointermove",move); svg.addEventListener("pointerup",up);
+    return;
+  }
+  // 範囲選択（ラバーバンド）
+  const p0=ptr(e); const startW=toWorld(p0.px,p0.py); let curW=startW; let didDrag=false;
+  function drawBand(){
+    render();
+    const x1=Math.min(startW.x,curW.x), y1=Math.min(startW.y,curW.y);
+    const x2=Math.max(startW.x,curW.x), y2=Math.max(startW.y,curW.y);
+    svg.appendChild(el("rect",{x:sx(x1),y:sy(y1),width:(x2-x1)*ppc(),height:(y2-y1)*ppc(),
+      fill:"rgba(126,143,201,.15)",stroke:"#c2618e","stroke-width":1,"stroke-dasharray":"4 3"}));
+  }
+  function move(ev){ curW=toWorld(ptr(ev).px,ptr(ev).py); if(Math.hypot(curW.x-startW.x,curW.y-startW.y)>3) didDrag=true; drawBand(); }
+  function up(){
+    svg.removeEventListener("pointermove",move); svg.removeEventListener("pointerup",up);
+    if(!didDrag){ setSelection([]); return; } // ただのクリック＝選択解除
+    const x1=Math.min(startW.x,curW.x), y1=Math.min(startW.y,curW.y);
+    const x2=Math.max(startW.x,curW.x), y2=Math.max(startW.y,curW.y);
+    const ids=state.items.filter(o=>!o.listOnly && o.x>=x1 && o.x<=x2 && o.y>=y1 && o.y<=y2).map(o=>o.id);
+    setSelection(ids);
+  }
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerup",up);
+});
+
+// ===== 選択 =====
+function selectItem(id){ setSelection(id ? [id] : []); }
+function setSelection(ids){
+  selection = (ids||[]).filter(id=>state.items.some(i=>i.id===id));
+  selectedId = selection.length ? selection[selection.length-1] : null;
+  refreshPanel();
+  render();
+  if(typeof renderList==="function") renderList();
+}
+function refreshPanel(){
+  const multi = selection.length>=2;
+  const sel = selection.length===1 ? state.items.find(i=>i.id===selectedId) : null;
+  document.getElementById("selNone").style.display=(selection.length===0)?"block":"none";
+  document.getElementById("selMulti").style.display=multi?"block":"none";
+  document.getElementById("selBox").style.display=sel?"block":"none";
+  if(multi){ document.getElementById("selMultiCount").textContent=selection.length+"個 選択中"; }
+  if(sel){
+    document.getElementById("selName").value=sel.name||"";
+    document.getElementById("selRot").value=sel.rot||0;
+    document.getElementById("selPrice").value=fmtYen(sel.price);
+    // 配置しない項目：回転・距離は隠す。チェック状態を反映
+    const lo = !!sel.listOnly;
+    document.getElementById("selListOnly").checked = lo;
+    document.getElementById("selListOnly").parentElement.style.display = (sel.kind==="furniture")?"flex":"none"; // 家具のみ切替可
+    document.getElementById("selRotRow").style.display = lo?"none":"block";
+    document.getElementById("selDistBox").style.display = lo?"none":"block";
+    // 寸法欄
+    const dd=document.getElementById("selDim");
+    if(sel.listOnly){
+      dd.innerHTML=`<p class="hint" style="margin-top:0;">レイアウトには配置しない項目です（リスト・合計にだけ入ります）。</p>`;
+    } else if(sel.kind==="outlet"){
+      dd.innerHTML=`<p class="hint" style="margin-top:0;">コンセントの位置です。ドラッグで動かせます。</p>`;
+    } else if(sel.kind==="door"){
+      dd.innerHTML=`<label>開口の幅(cm)</label><input type="number" id="sd1" value="${sel.width}">`
+        +`<button id="doorFlip" style="width:100%;margin-top:8px;">開く向きを左右反転</button>`;
+      document.getElementById("sd1").addEventListener("input",()=>{ sel.width=parseFloat(document.getElementById("sd1").value)||0; save(); render(); });
+      document.getElementById("doorFlip").addEventListener("click",()=>{ sel.flip=!sel.flip; save(); render(); });
+    } else {
+    if(sel.shape==="circle") dd.innerHTML=`<label>直径(cm)</label><input type="number" id="sd1" value="${sel.dia}">`;
+    else if(sel.shape==="square") dd.innerHTML=`<label>一辺(cm)</label><input type="number" id="sd1" value="${sel.side}">`;
+    else dd.innerHTML=`<div class="row"><div><label>幅(cm)</label><input type="number" id="sd1" value="${sel.w}"></div><div><label>奥行き(cm)</label><input type="number" id="sd2" value="${sel.d}"></div></div>`;
+    const apply=()=>{
+      const v1=parseFloat(document.getElementById("sd1").value)||0;
+      if(sel.shape==="circle") sel.dia=v1;
+      else if(sel.shape==="square") sel.side=v1;
+      else { sel.w=v1; const v2=parseFloat(document.getElementById("sd2").value)||0; sel.d=v2; }
+      save(); render();
+    };
+    document.getElementById("sd1").addEventListener("input",apply);
+    const sd2=document.getElementById("sd2"); if(sd2) sd2.addEventListener("input",apply);
+    }
+    const link=document.getElementById("selUrlLink");
+    if(sel.url){ link.style.display="inline-block"; link.href=sel.url; } else link.style.display="none";
+  }
+}
+
+document.getElementById("selName").addEventListener("input",e=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(sel){sel.name=e.target.value; save(); render();}
+});
+document.getElementById("selRot").addEventListener("input",e=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(sel){sel.rot=parseFloat(e.target.value)||0; save(); render();}
+});
+document.getElementById("selPrice").addEventListener("input",e=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(sel){ applyPrice(sel, parseYen(e.target.value)); save(); updateTotal();}
+});
+document.getElementById("selPrice").addEventListener("change",e=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(sel){ e.target.value=fmtYen(sel.price); }
+});
+document.getElementById("selListOnly").addEventListener("change",e=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(!sel) return;
+  if(e.target.checked){ sel.listOnly=true; }
+  else { delete sel.listOnly; // 配置する：部屋の中央付近に置く
+    const r=roomBounds(); sel.x=Math.round((r.minX+r.maxX)/2); sel.y=Math.round((r.minY+r.maxY)/2); }
+  save(); refreshPanel(); render(); renderList();
+});
+document.getElementById("rot90").addEventListener("click",()=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(sel){sel.rot=((sel.rot||0)+90)%360; document.getElementById("selRot").value=sel.rot; save(); render();}
+});
+document.getElementById("dupItem").addEventListener("click",()=>{
+  const sel=state.items.find(i=>i.id===selectedId); if(!sel) return;
+  if(!isFixture(sel) && !sel.linkId) sel.linkId=lid();
+  const copy=JSON.parse(JSON.stringify(sel)); copy.id=uid(); copy.x+=30; copy.y+=30;
+  addThing(copy); save(); selectItem(copy.id);
+});
+function delItem(){ if(selectedId) deleteItems(new Set([selectedId])); }
+document.getElementById("delItem").addEventListener("click",delItem);
+function delSelectedAll(){ if(selection.length) deleteItems(new Set(selection)); }
+document.getElementById("delSelected").addEventListener("click",delSelectedAll);
+
+// ===== 家具追加フォーム =====
+let curShape="rect";
+document.querySelectorAll("#shapeSeg button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#shapeSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); curShape=b.dataset.shape;
+    document.getElementById("dimRect").style.display=curShape==="rect"?"block":"none";
+    document.getElementById("dimSquare").style.display=curShape==="square"?"block":"none";
+    document.getElementById("dimCircle").style.display=curShape==="circle"?"block":"none";
+  });
+});
+// 入力欄フォーカス記憶（チップ反映先）
+document.querySelectorAll(".dim").forEach(inp=>{
+  inp.addEventListener("focus",()=>lastDimInput=inp);
+});
+function uid(){ return "i"+Math.floor(performance.now()*1000).toString(36)+state.items.length; }
+document.getElementById("addItem").addEventListener("click",()=>{
+  const r=roomBounds();
+  const off=(state.items.length % 8) * 30; // 重ならないよう少しずつずらして配置
+  const listOnly=document.getElementById("fListOnly").checked;
+  const isPillar=document.getElementById("fPillar").checked && !listOnly; // 「配置しない」優先
+  const it={ id:uid(), name:document.getElementById("fName").value.trim()||(isPillar?"柱":"家具"),
+    shape:curShape, rot:0, kind:(isPillar?"pillar":"furniture"),
+    x:Math.round((r.minX+r.maxX)/2 - 90 + off),
+    y:Math.round((r.minY+r.maxY)/2 - 90 + off),
+    url:document.getElementById("fUrl").value.trim(),
+    price:parseYen(document.getElementById("fPrice").value) };
+  if(listOnly) it.listOnly=true;
+  if(curShape==="circle") it.dia=parseFloat(document.getElementById("fDia").value)||45;
+  else if(curShape==="square") it.side=parseFloat(document.getElementById("fSide").value)||60;
+  else { it.w=parseFloat(document.getElementById("fW").value)||100; it.d=parseFloat(document.getElementById("fD").value)||50; }
+  addThing(it); save(); selectItem(it.id);
+  document.getElementById("fName").value=""; document.getElementById("fUrl").value="";
+  document.getElementById("pasteBox").value=""; document.getElementById("chips").innerHTML="";
+  document.getElementById("fPillar").checked=false;
+  document.getElementById("fListOnly").checked=false;
+  document.getElementById("fPrice").value="";
+});
+
+// ===== ドア追加 =====
+let curDoor="swing";
+document.querySelectorAll("#doorSeg button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("#doorSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); curDoor=b.dataset.door;
+  });
+});
+document.getElementById("addDoor").addEventListener("click",()=>{
+  const r=roomBounds();
+  const off=(state.items.length % 8) * 30;
+  const it={ id:uid(), name:(curDoor==="slide"?"引き戸":"ドア"), kind:"door", doorType:curDoor,
+    width:parseFloat(document.getElementById("doorW").value)||80, rot:0, flip:false,
+    x:Math.round((r.minX+r.maxX)/2 - 60 + off),
+    y:Math.round((r.minY+r.maxY)/2 - 60 + off) };
+  addThing(it); save(); selectItem(it.id);
+});
+
+// ===== コンセント追加 =====
+document.getElementById("addOutlet").addEventListener("click",()=>{
+  const r=roomBounds();
+  const off=(state.items.length % 8) * 30;
+  const it={ id:uid(), name:"コンセント", kind:"outlet", rot:0,
+    x:Math.round((r.minX+r.maxX)/2 - 40 + off),
+    y:Math.round((r.minY+r.maxY)/2 - 40 + off) };
+  addThing(it); save(); selectItem(it.id);
+});
+
+// ===== コピペで数字を拾う =====
+document.getElementById("pasteBox").addEventListener("input",e=>{
+  const txt=e.target.value;
+  // ラベル付きを自動反映
+  autoFill(txt,/(幅|横|W)\D{0,3}(\d+(?:\.\d+)?)\s*(mm|cm|㎜|㎝)?/i, v=>setIf("fW",v));
+  autoFill(txt,/(奥行?き?|D)\D{0,3}(\d+(?:\.\d+)?)\s*(mm|cm|㎜|㎝)?/i, v=>setIf("fD",v));
+  autoFill(txt,/(直径|径|φ|Φ|⌀)\D{0,3}(\d+(?:\.\d+)?)\s*(mm|cm|㎜|㎝)?/i, v=>{ setIf("fDia",v); });
+  // 価格を自動で拾う（¥ や 円 つきの数字）
+  const pm=txt.match(/[¥￥]\s*([\d,]+)/) || txt.match(/([\d,]{3,})\s*円/);
+  if(pm){ const pv=parseInt(pm[1].replace(/,/g,""),10); if(pv>0) document.getElementById("fPrice").value=fmtYen(pv); }
+  // 全数字をチップに
+  const chips=document.getElementById("chips"); chips.innerHTML="";
+  const seen=new Set();
+  const re=/(\d+(?:\.\d+)?)\s*(mm|cm|㎜|㎝)?/g; let m;
+  while((m=re.exec(txt))){
+    let val=parseFloat(m[1]); const unit=(m[2]||"").toLowerCase();
+    if(unit==="mm"||unit==="㎜"){ val=val/10; }
+    val=Math.round(val*10)/10;
+    if(val<5||val>500) continue; // 家具サイズらしい範囲のみ
+    if(seen.has(val)) continue; seen.add(val);
+    const c=document.createElement("span"); c.className="chip"; c.textContent=val+"cm";
+    c.addEventListener("click",()=>{
+      const target=lastDimInput || document.getElementById(curShape==="circle"?"fDia":curShape==="square"?"fSide":"fW");
+      target.value=val; target.focus(); lastDimInput=target;
+    });
+    chips.appendChild(c);
+  }
+});
+function autoFill(txt,re,setter){ const m=txt.match(re); if(m){ let v=parseFloat(m[2]); const u=(m[3]||"").toLowerCase(); if(u==="mm"||u==="㎜")v/=10; setter(Math.round(v*10)/10);} }
+function setIf(id,v){ const e=document.getElementById(id); if(e && e.offsetParent!==null) e.value=v; }
+
+// ===== 部屋ボタン =====
+document.getElementById("makeRect").addEventListener("click",()=>{
+  const w=parseFloat(document.getElementById("roomW").value)||400;
+  const d=parseFloat(document.getElementById("roomD").value)||300;
+  state.room.points=[{x:0,y:0},{x:w,y:0},{x:w,y:d},{x:0,y:d}];
+  document.getElementById("lConfig").style.display="none";
+  save(); fitView();
+});
+function buildL(refit){
+  const W=parseFloat(document.getElementById("roomW").value)||400;
+  const D=parseFloat(document.getElementById("roomD").value)||300;
+  let nw=parseFloat(document.getElementById("notchW").value)||0;
+  let nd=parseFloat(document.getElementById("notchD").value)||0;
+  nw=Math.max(0,Math.min(nw,W-10)); nd=Math.max(0,Math.min(nd,D-10)); // 全体を超えないように
+  const c=document.getElementById("notchCorner").value;
+  let pts;
+  if(c==="br")      pts=[[0,0],[W,0],[W,D-nd],[W-nw,D-nd],[W-nw,D],[0,D]];      // 右下を欠け
+  else if(c==="tr") pts=[[0,0],[W-nw,0],[W-nw,nd],[W,nd],[W,D],[0,D]];          // 右上を欠け
+  else if(c==="bl") pts=[[0,0],[W,0],[W,D],[nw,D],[nw,D-nd],[0,D-nd]];          // 左下を欠け
+  else              pts=[[nw,0],[W,0],[W,D],[0,D],[0,nd],[nw,nd]];              // 左上を欠け
+  state.room.points=pts.map(([x,y])=>({x,y}));
+  save(); if(refit) fitView(); else render();
+}
+document.getElementById("makeL").addEventListener("click",()=>{
+  document.getElementById("lConfig").style.display="block";
+  buildL(true);
+});
+// L字の数字を変えたら即反映（L字表示中のときだけ）
+["notchW","notchD","notchCorner","roomW","roomD"].forEach(id=>{
+  const el=document.getElementById(id);
+  const handler=()=>{ if(document.getElementById("lConfig").style.display!=="none") buildL(false); };
+  el.addEventListener("input",handler);   // 数値入力用
+  el.addEventListener("change",handler);  // ドロップダウン用（input が出ない環境への対策）
+});
+document.getElementById("editCorners").addEventListener("click",()=>{ cornerEditMode=!cornerEditMode; render(); });
+
+// ===== ツールバー =====
+function setMode(m){
+  dragMode=m;
+  document.getElementById("modeSelect").classList.toggle("on", m==="select");
+  document.getElementById("modePan").classList.toggle("on", m==="pan");
+  svg.style.cursor = m==="pan" ? "grab" : "crosshair";
+}
+document.getElementById("modeSelect").addEventListener("click",()=>setMode("select"));
+document.getElementById("modePan").addEventListener("click",()=>setMode("pan"));
+document.getElementById("dupPlan").addEventListener("click",dupPlan);
+document.getElementById("newPlan").addEventListener("click",newPlan);
+document.getElementById("zoomIn").addEventListener("click",()=>{ view.zoom*=1.2; render(); });
+document.getElementById("zoomOut").addEventListener("click",()=>{ view.zoom/=1.2; render(); });
+document.getElementById("fit").addEventListener("click",fitView);
+// データをコピー（アーティファクトではファイルのダウンロードができないため、文字で書き出す）
+document.getElementById("exportData").addEventListener("click",()=>{
+  openDlg({msg:"このデータをコピーしてLINEやメモに貼り付けて保存できます。相手は「貼り付けて読み込み」で同じレイアウトを開けます。", text:JSON.stringify(doc), readOnly:true, copy:true, okLabel:"閉じる", cancel:false});
+});
+function importDoc(txt){
+  try{
+    const data=JSON.parse(txt);
+    if(!(data.fixtures&&data.plans) && !(Array.isArray(data.plans)&&data.plans.length) && !(data.room&&Array.isArray(data.items))) throw new Error("形式が違います");
+    doc=migrateToDoc(data); rebuildState();
+    selectItem(null); save(); fitView(); renderPlanTabs();
+    showMsg("レイアウトを読み込みました。");
+  }catch(err){ showMsg("読み込めませんでした。コピーしたデータ（または保存したファイル）を最初から最後までそのまま使っているか確認してください。"); }
+}
+document.getElementById("importText").addEventListener("click",()=>{
+  openDlg({msg:"「データをコピー」で受け取った文字をここに貼り付けてください。今のレイアウトは置き換わります。", text:"", okLabel:"読み込む", onOk:importDoc});
+});
+// ファイルから読み込み
+document.getElementById("importData").addEventListener("click",()=>document.getElementById("importFile").click());
+document.getElementById("importFile").addEventListener("change",e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    importDoc(reader.result);
+    e.target.value=""; // 同じファイルを再度選べるように
+  };
+  reader.readAsText(file);
+});
+document.getElementById("resetAll").addEventListener("click",()=>{
+  openDlg({msg:"すべてのレイアウトを消して、最初の間取り（2LDK）に戻します。よろしいですか？", okLabel:"リセットする", onOk:()=>{
+    store(null);
+    doc=freshDoc(); rebuildState();
+    prevSnapshot=JSON.stringify(doc); undoStack=[]; redoStack=[];
+    selectItem(null); fitView(); renderPlanTabs();
+  }});
+});
+
+window.addEventListener("resize",render);
+setMode("select");
+renderPlanTabs();
+fitView();
+</script>
+
+</body>
+</html>
