@@ -525,6 +525,9 @@ function fitView() {
   const r = roomBounds();
   const W = svg.clientWidth, H = svg.clientHeight;
   const pad = 60;
+  // 読み込み直後で画面の大きさがまだ決まっていないときは、決まってからやり直す
+  if (W < pad*2+20 || H < pad*2+20) { if ((fitView.tries=(fitView.tries||0)+1) < 60) requestAnimationFrame(fitView); return; }
+  fitView.tries = 0;
   const sx = (W-pad*2)/r.w, sy = (H-pad*2)/r.h;
   view.zoom = 1;
   view.S = Math.min(sx, sy);
@@ -1358,6 +1361,7 @@ document.getElementById("resetAll").addEventListener("click",()=>{
 });
 
 window.addEventListener("resize",render);
+window.addEventListener("load",fitView);
 setMode("select");
 renderPlanTabs();
 fitView();
